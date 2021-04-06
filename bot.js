@@ -56,13 +56,10 @@ client.on("message", (message) => {
     redis_client.lpush(message.guild.id, message.content);
   }
 
-  let cache_size = 0;
   redis_client.llen(message.guild.id, function (err, reply) {
     // check if we've reached the cache limit
     if (reply !== undefined && err == null) {
-      cache_size = reply;
-
-      if (cache_size >= process.env.CACHE_SIZE) {
+      if (reply >= process.env.CACHE_SIZE) {
         redis_client.lrange(message.guild.id, 0, -1, function (err, reply) {
           // pick a random message
           rand_msg = reply[Math.floor(Math.random() * process.env.CACHE_SIZE)];
