@@ -48,7 +48,6 @@ client.on("message", (message) => {
     if (reply !== undefined && err == null) {
       cache_size = reply;
 
-      console.log(cache_size);
       if (cache_size >= process.env.CACHE_SIZE) {
         redis_client.lrange(message.guild.id, 0, -1, function (err, reply) {
           // pick a random message
@@ -71,7 +70,7 @@ client.on("message", (message) => {
             .catch(console.error);
 
           process.stdout.write(`Flushing Cache: `);
-          redis_client.flushdb(function (err, reply) {
+          redis_client.del(message.guild.id, function (err, reply) {
             // flush cache
             process.stdout.write(reply + "\n");
           });
