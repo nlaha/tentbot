@@ -26,6 +26,20 @@ const Tenor = require("tenorjs").client({
 });
 
 // BOT
+function makeid(length) {
+  var result = [];
+  var characters =
+    //"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    "0123456789";
+  var charactersLength = characters.length;
+  for (var i = 0; i < length; i++) {
+    result.push(
+      characters.charAt(Math.floor(Math.random() * charactersLength))
+    );
+  }
+  return result.join("");
+}
+
 client.on("ready", () => {
   console.log(`BOT ONLINE: Serving ${client.guilds.cache.size} server(s)`);
   process.stdout.write(`Flushing Cache: `);
@@ -54,7 +68,10 @@ client.on("message", (message) => {
           rand_msg = reply[Math.floor(Math.random() * process.env.CACHE_SIZE)];
 
           msg_words = rand_msg.split(" ");
-          msg_word = msg_words[Math.floor(Math.random() * msg_words.length)];
+          msg_word =
+            msg_words[Math.floor(Math.random() * msg_words.length)] +
+            " " +
+            makeid(6);
           console.log(`Searching Tenor for ${msg_word}...`);
 
           Tenor.Search.Query(msg_word, "1")
