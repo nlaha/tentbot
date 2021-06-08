@@ -29,8 +29,8 @@ const Tenor = require("tenorjs").client({
 function makeid(length) {
   var result = [];
   var characters =
-    //"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    "0123456789";
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  //"0123456789";
   var charactersLength = characters.length;
   for (var i = 0; i < length; i++) {
     result.push(
@@ -49,7 +49,30 @@ client.on("ready", () => {
   });
 });
 
-client.on("message", (message) => {
+// ban honde
+bot.on("guildMemberAdd", (message, member) => {
+  if (member.displayName.contains("twitter.com/h0nde")) {
+    message.channel.send(
+      ":warning: | A H0NDE HAS ENTERED THE SERVER | :warning: "
+    );
+    member
+      .ban()
+      .then((member) => {
+        // Successmessage
+        message.channel.send(
+          ":warning: | THE H0NDE HAS BEEN REMOVED FROM THE SERVER | :warning:"
+        );
+      })
+      .catch(() => {
+        // Failmessage
+        message.channel.send(
+          ":exclamation: | THE H0NDE COULD NOT BE REMOVED FROM THE SERVER | :exclamation: "
+        );
+      });
+  }
+});
+
+client.on("message", async (message) => {
   //if (message.author.bot) return;
 
   if (message.content !== "") {
@@ -93,6 +116,8 @@ client.on("message", (message) => {
     }
   });
 
+  if (message.author.bot) return;
+
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
@@ -100,5 +125,17 @@ client.on("message", (message) => {
     return message.channel.send(`Server count: ${client.guilds.cache.size}`);
   }
 });
+
+function attachIsMid(msgAttach) {
+  var url = msgAttach.url;
+  //True if this url is a png image.
+  return url.indexOf("mid", url.length - "mid".length /*or 3*/) !== -1;
+}
+
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+}
 
 client.login(process.env.TOKEN);
