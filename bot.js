@@ -50,7 +50,7 @@ client.on("ready", () => {
 });
 
 // ban honde
-bot.on("guildMemberAdd", (message, member) => {
+client.on("guildMemberAdd", (message, member) => {
   if (member.displayName.contains("twitter.com/h0nde")) {
     message.channel.send(
       ":warning: | A H0NDE HAS ENTERED THE SERVER | :warning: "
