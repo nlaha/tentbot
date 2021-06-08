@@ -126,12 +126,6 @@ client.on("message", async (message) => {
   }
 });
 
-function attachIsMid(msgAttach) {
-  var url = msgAttach.url;
-  //True if this url is a png image.
-  return url.indexOf("mid", url.length - "mid".length /*or 3*/) !== -1;
-}
-
 function getRandomInt(min, max) {
   min = Math.ceil(min);
   max = Math.floor(max);
