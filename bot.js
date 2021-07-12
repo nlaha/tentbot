@@ -248,7 +248,7 @@ mongo_client.connect(function (err) {
           if (message_chance < 0.5) {
             // loot drop!
             tentrpg.loot(client, message, command, args, db);
-            flush_cache();
+            flush_cache(message);
           } else {
             redis_client.lrange(message.guild.id, 0, -1, function (err, reply) {
               // pick a random message
@@ -274,7 +274,7 @@ mongo_client.connect(function (err) {
                 })
                 .catch(console.error);
 
-              flush_cache();
+              flush_cache(message);
             });
           }
         }
@@ -282,7 +282,7 @@ mongo_client.connect(function (err) {
     });
   });
 
-  function flush_cache() {
+  function flush_cache(message) {
     process.stdout.write(`Flushing Cache: `);
     redis_client.del(message.guild.id, function (err, reply) {
       // flush cache
