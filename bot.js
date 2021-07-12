@@ -1,6 +1,8 @@
 // IMPORTS
-const { Client, MessageEmbed } = require("discord.js");
-const client = new Client();
+const Discord = require("discord.js");
+const client = new Discord.Client();
+const disbut = require("discord-buttons");
+require("discord-buttons")(client);
 const prefix = "!";
 
 // REDIS
@@ -13,123 +15,294 @@ const redis_client = redis.createClient({
   db: process.env.REDIS_DB,
 });
 
-const { promisify } = require("util");
-const getAsync = promisify(redis_client.get).bind(redis_client);
+// MONGODB
+const MongoClient = require("mongodb").MongoClient;
+const mongo_client = new MongoClient(process.env.MONGODB_URL);
 
-// TENOR
-const Tenor = require("tenorjs").client({
-  Key: process.env.TENOR_KEY, // https://tenor.com/developer/keyregistration
-  Filter: "off", // "off", "low", "medium", "high", not case sensitive
-  Locale: "en_US", // Your locale here, case-sensitivity depends on input
-  MediaFilter: "minimal", // either minimal or basic, not case sensitive
-  DateFormat: "D/MM/YYYY - H:mm:ss A", // Change this accordingly
-});
+mongo_client.connect(function (err) {
+  console.log("Connected successfully to MongoDB server");
 
-// BOT
-function makeid(length) {
-  var result = [];
-  var characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  //"0123456789";
-  var charactersLength = characters.length;
-  for (var i = 0; i < length; i++) {
-    result.push(
-      characters.charAt(Math.floor(Math.random() * charactersLength))
-    );
-  }
-  return result.join("");
-}
+  db = mongo_client.db(process.env.MONGODB_DBNAME);
 
-client.on("ready", () => {
-  console.log(`BOT ONLINE: Serving ${client.guilds.cache.size} server(s)`);
-  process.stdout.write(`Flushing Cache: `);
-  redis_client.flushdb(function (err, reply) {
-    // reply is null when the key is missing
-    process.stdout.write(reply + "\n");
+  db.collection("items").createIndex(
+    { id: 1 },
+    { unique: true, background: true }
+  );
+
+  db.collection("users").createIndex(
+    { user_id: 1 },
+    { unique: true, background: true }
+  );
+
+  const { promisify } = require("util");
+  const getAsync = promisify(redis_client.get).bind(redis_client);
+
+  // modules
+  const tentrpg = require("./tentrpg.js");
+  const tentrpg_battle = require("./tentrpg_battle.js");
+
+  // TENOR
+  const Tenor = require("tenorjs").client({
+    Key: process.env.TENOR_KEY, // https://tenor.com/developer/keyregistration
+    Filter: "off", // "off", "low", "medium", "high", not case sensitive
+    Locale: "en_US", // Your locale here, case-sensitivity depends on input
+    MediaFilter: "minimal", // either minimal or basic, not case sensitive
+    DateFormat: "D/MM/YYYY - H:mm:ss A", // Change this accordingly
   });
-});
 
-// ban honde
-client.on("guildMemberAdd", (message, member) => {
-  if (member.displayName.contains("twitter.com/h0nde")) {
-    message.channel.send(
-      ":warning: | A H0NDE HAS ENTERED THE SERVER | :warning: "
-    );
-    member
-      .ban()
-      .then((member) => {
-        // Successmessage
-        message.channel.send(
-          ":warning: | THE H0NDE HAS BEEN REMOVED FROM THE SERVER | :warning:"
-        );
-      })
-      .catch(() => {
-        // Failmessage
-        message.channel.send(
-          ":exclamation: | THE H0NDE COULD NOT BE REMOVED FROM THE SERVER | :exclamation: "
-        );
-      });
-  }
-});
-
-client.on("message", async (message) => {
-  //if (message.author.bot) return;
-
-  if (message.content !== "") {
-    redis_client.lpush(message.guild.id, message.content);
+  // BOT
+  function makeid(length) {
+    var result = [];
+    var characters =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    //"0123456789";
+    var charactersLength = characters.length;
+    for (var i = 0; i < length; i++) {
+      result.push(
+        characters.charAt(Math.floor(Math.random() * charactersLength))
+      );
+    }
+    return result.join("");
   }
 
-  redis_client.llen(message.guild.id, function (err, reply) {
-    // check if we've reached the cache limit
-    if (reply !== undefined && err == null) {
-      if (reply >= process.env.CACHE_SIZE) {
-        redis_client.lrange(message.guild.id, 0, -1, function (err, reply) {
-          // pick a random message
-          rand_msg = reply[Math.floor(Math.random() * process.env.CACHE_SIZE)];
+  client.on("ready", () => {
+    console.log(`BOT ONLINE: Serving ${client.guilds.cache.size} server(s)`);
+    process.stdout.write(`Flushing Cache: `);
+    redis_client.flushdb(function (err, reply) {
+      // reply is null when the key is missing
+      process.stdout.write(reply + "\n");
+    });
+  });
 
-          msg_words = rand_msg.split(" ");
-          msg_word =
-            msg_words[Math.floor(Math.random() * msg_words.length)] +
-            " " +
-            makeid(6);
-          console.log(`Searching Tenor for ${msg_word}...`);
+  client.on("clickButton", async (button) => {
+    if (button.id.includes("take")) {
+      console.log(
+        `Giving item "${button.id}" to ${button.clicker.user.username}`
+      );
 
-          Tenor.Search.Query(msg_word, "1")
-            .then((Results) => {
-              Results.forEach((Post) => {
-                console.log(
-                  `Item #${Post.id} (Created: ${Post.created}) @ ${Post.url}`
-                );
+      const col_users = db.collection("users");
+      await col_users.updateOne(
+        {
+          user_id: button.clicker.user.id,
+          user_name: button.clicker.user.username,
+        },
+        {
+          $setOnInsert: {
+            user_id: button.clicker.user.id,
+            user_name: button.clicker.user.username,
+          },
+          $addToSet: {
+            user_inventory: button.id.replace("take", ""),
+          },
+        },
+        { upsert: true }
+      );
 
-                message.channel.send(Post.url);
-              });
-            })
-            .catch(console.error);
+      let take_disabled = new disbut.MessageButton()
+        .setStyle("grey")
+        .setLabel(`Item owned by ${button.clicker.user.username}`)
+        .setDisabled(true)
+        .setID("disabled");
 
-          process.stdout.write(`Flushing Cache: `);
-          redis_client.del(message.guild.id, function (err, reply) {
-            // flush cache
-            process.stdout.write(reply + "\n");
-          });
-        });
+      await button.message.edit(button.message.embeds[0], take_disabled);
+
+      button.reply.defer("");
+    } else if (button.id.includes("page") && button.id.includes("inv")) {
+      // handles page changing in the inventory
+      // get the current page from the message description
+      var current_page = Number.parseInt(
+        button.message.embeds[0].description.match(/\d+/)[0]
+      );
+
+      if (button.id.includes("next")) {
+        current_page += 1;
+      } else if (button.id.includes("previous")) {
+        current_page -= 1;
       }
+
+      let status = await tentrpg.get_inventory_page(
+        current_page,
+        button.message,
+        button.id.substring(button.id.indexOf("_%_") + 3),
+        db,
+        true
+      );
+
+      button.reply.defer("");
     }
   });
 
-  if (message.author.bot) return;
+  /**
+   * So basically this is here because there's
+   * this bot called twitter.com/h0nde that somehow
+   * found an exploit allowing them to create a bunch of discord
+   * accounts and create what is basically a worm
+   */
+  client.on("guildMemberAdd", (message, member) => {
+    if (member.displayName.contains("twitter.com/h0nde")) {
+      message.channel.send(
+        ":warning: | A H0NDE HAS ENTERED THE SERVER | :warning: "
+      );
+      member
+        .ban()
+        .then((member) => {
+          // Successmessage
+          message.channel.send(
+            ":warning: | THE H0NDE HAS BEEN REMOVED FROM THE SERVER | :warning:"
+          );
+        })
+        .catch(() => {
+          // Failmessage
+          message.channel.send(
+            ":exclamation: | THE H0NDE COULD NOT BE REMOVED FROM THE SERVER | :exclamation: "
+          );
+        });
+    }
+  });
 
-  const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+  client.on("message", async (message) => {
+    if (message.author.bot) return;
 
-  if (command === "stats") {
-    return message.channel.send(`Server count: ${client.guilds.cache.size}`);
+    if (message.content !== "") {
+      redis_client.lpush(message.guild.id, message.content);
+    }
+
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
+    if (command === "stats") {
+      redis_client.llen(message.guild.id, async function (err, reply) {
+        const statEmbed = new Discord.MessageEmbed()
+          .setTitle("TentBot Stats")
+          .addFields(
+            {
+              name: "Server Count",
+              value: client.guilds.cache.size,
+              inline: true,
+            },
+            { name: "Cache Current", value: reply, inline: true },
+            { name: "Cache Max", value: process.env.CACHE_SIZE, inline: true }
+          )
+          .setColor("#42f566");
+
+        return message.channel.send(statEmbed);
+      });
+    } else if (command === "i") {
+      //tentrpg.loot(client, message, command, args, db);
+      return;
+    } else if (command === "inv") {
+      const col_users = db.collection("users");
+      const col_items = db.collection("items");
+      if (args[0] === "clear") {
+        await col_users.updateOne(
+          {
+            user_id: message.member.user.id,
+            user_name: message.member.user.username,
+          },
+          {
+            $setOnInsert: {
+              user_id: message.member.user.id,
+              user_name: message.member.user.username,
+            },
+            $set: {
+              user_inventory: [],
+            },
+          },
+          { upsert: true }
+        );
+        message.react("✅");
+      } else {
+        await tentrpg.get_inventory_page(
+          1,
+          message,
+          message.member.user.id,
+          db,
+          false
+        );
+      }
+    } else if (command === "battle") {
+      if (args[0]) {
+        const challenged_user = getUserFromMention(args[0]);
+        if (!challenged_user) {
+          return message.reply(`Please use the format ${prefix}battle @user`);
+        }
+
+        tentrpg_battle.battle(
+          client,
+          message,
+          command,
+          args,
+          db,
+          challenged_user
+        );
+      }
+    }
+
+    // random chance to come across an item
+    var message_chance = Math.random();
+
+    redis_client.llen(message.guild.id, function (err, reply) {
+      // check if we've reached the cache limit
+      if (reply !== undefined && err == null) {
+        if (reply >= process.env.CACHE_SIZE) {
+          if (message_chance < 0.5) {
+            // loot drop!
+            tentrpg.loot(client, message, command, args, db);
+            flush_cache();
+          } else {
+            redis_client.lrange(message.guild.id, 0, -1, function (err, reply) {
+              // pick a random message
+              rand_msg =
+                reply[Math.floor(Math.random() * process.env.CACHE_SIZE)];
+
+              msg_words = rand_msg.split(" ");
+              msg_word =
+                msg_words[Math.floor(Math.random() * msg_words.length)] +
+                " " +
+                makeid(6);
+              console.log(`Searching Tenor for ${msg_word}...`);
+
+              Tenor.Search.Query(msg_word, "1")
+                .then((Results) => {
+                  Results.forEach((Post) => {
+                    console.log(
+                      `Item #${Post.id} (Created: ${Post.created}) @ ${Post.url}`
+                    );
+
+                    message.channel.send(Post.url);
+                  });
+                })
+                .catch(console.error);
+
+              flush_cache();
+            });
+          }
+        }
+      }
+    });
+  });
+
+  function flush_cache() {
+    process.stdout.write(`Flushing Cache: `);
+    redis_client.del(message.guild.id, function (err, reply) {
+      // flush cache
+      process.stdout.write(reply + "\n");
+    });
   }
+
+  function getUserFromMention(mention) {
+    if (!mention) return;
+
+    if (mention.startsWith("<@") && mention.endsWith(">")) {
+      mention = mention.slice(2, -1);
+
+      if (mention.startsWith("!")) {
+        mention = mention.slice(1);
+      }
+
+      return client.users.cache.get(mention);
+    }
+  }
+
+  client.login(process.env.TOKEN);
 });
-
-function getRandomInt(min, max) {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
-}
-
-client.login(process.env.TOKEN);
