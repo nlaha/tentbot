@@ -90,9 +90,21 @@ function get_item_embed(item) {
     )
     .addFields(
       { name: "Powers", value: item.powers.join(", ") },
-      { name: "Attack", value: item.attack, inline: true },
-      { name: "Defense", value: item.defense, inline: true },
-      { name: "Health", value: item.health, inline: true }
+      {
+        name: "Attack",
+        value: `${item.attack} (${item.attack * item.level})`,
+        inline: true,
+      },
+      {
+        name: "Defense",
+        value: `${item.defense} (${item.defense * item.level})`,
+        inline: true,
+      },
+      {
+        name: "Health",
+        value: `${item.health} (${item.health * item.level})`,
+        inline: true,
+      }
     )
     .setThumbnail(item.thumbnail)
     .setURL(item.url)
@@ -108,7 +120,9 @@ function get_inventory_embed(items, message, page) {
     items.forEach((item) => {
       embed.addFields({
         name: `[L ${item.level}] [${item.prefix}] ${item.name}`,
-        value: `A/D/H | **${item.attack}/${item.defense}/${item.health}** | [link](${item.url})\n\n\n`,
+        value: `A/D/H | **${item.attack * item.level}/${
+          item.defense * item.level
+        }/${item.health * item.level}** | [link](${item.url})\n\n\n`,
       });
     });
   } else {

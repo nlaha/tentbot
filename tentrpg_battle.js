@@ -14,6 +14,10 @@ async function battle(client, message, command, args, db, challenged_user) {
 
   let row = new disbut.MessageActionRow().addComponents(previouspage, nextpage);
 
+  message.member.user.send(
+    `Waiting for a response from ${challenged_user.username}...`
+  );
+
   challenged_user.send(
     `${message.author.username} has challenged you to a battle!`,
     row
