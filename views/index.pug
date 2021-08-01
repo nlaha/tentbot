@@ -21,11 +21,6 @@ html(lang="en")
                             div.card-header
                                 a.item-title(href=`${val['url']}`)=`[${val.level}][${val.prefix}] ${val.name}`  
                             div.row.g-0
-                                div.col-2.ml-4.mt-4.mb-5
-                                    img.thumbnail.rounded.m-2(src=val.thumbnail, alt=val.name)
-                                    div.btn-group.m-2
-                                        button.btn.btn-primary Enchant
-                                        button.btn.btn-secondary Curse
                                 div.col.md-8
                                     div.card-body
                                         h5 Powers:
@@ -38,3 +33,7 @@ html(lang="en")
                                         p.chip.m-2=`Health ${val.health}(${val.health * val.level})`
                                         h6.mt-4=val.date_discovered ? `Date Discovered: ${val.date_discovered.toDateString()}` : 'Date Discovered: Unknown'
                                         h6.mt-4=val.native_server ? `Native Server: ${val.native_server}` : 'Native Server: Unknown'
+
+                                        div.btn-group.m-2
+                                            button.btn.btn-primary Enchant
+                                            button.btn.btn-secondary Curse
