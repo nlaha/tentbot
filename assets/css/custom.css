@@ -33,10 +33,10 @@ li {
   font-weight: bolder;
   font-size: larger;
   text-decoration: none;
-  color: white;
+  color: white !important;
 }
 
 .btnlink:hover {
   text-decoration: none;
-  color: white;
+  color: white !important;
 }
