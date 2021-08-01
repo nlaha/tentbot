@@ -19,6 +19,10 @@ async function loot(client, message, command, args, db) {
     defense: 0,
     health: 0,
     url: "",
+    date_discovered: new Date(),
+    native_server: message.guild.id,
+    enchants: 0,
+    curses: 0,
   };
 
   item.prefix = get_prefix();

@@ -60,7 +60,7 @@ async function clickButton(button, db) {
     button.reply.defer("");
   } else if (button.id.includes("battle_accept")) {
     battleID = 0;
-    url = process.env.WEBAPP_HOST + "/battle?battleid=" + battleID;
+    url = `${process.env.WEBAPP_HOST}:${process.env.WEBAPP_PORT}/battle?battleid=${battleID}`;
   } else if (button.id.includes("battle_decline")) {
   }
 }
