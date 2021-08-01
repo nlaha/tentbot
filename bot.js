@@ -71,7 +71,7 @@ mongo_client.connect(function (err) {
 
     client.user.setPresence({
       activity: {
-        name: `to ${client.guilds.cache.size} servers!`,
+        name: `${client.guilds.cache.size} servers!`,
         type: "WATCHING",
       },
     });
