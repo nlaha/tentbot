@@ -68,6 +68,14 @@ mongo_client.connect(function (err) {
 
   client.on("ready", () => {
     console.log(`BOT ONLINE: Serving ${client.guilds.cache.size} server(s)`);
+
+    client.user.setPresence({
+      activity: {
+        name: `to ${client.guilds.cache.size} servers!`,
+        type: "WATCHING",
+      },
+    });
+
     process.stdout.write(`Flushing Cache: `);
     redis_client.flushdb(function (err, reply) {
       // reply is null when the key is missing
