@@ -261,3 +261,7 @@ mongo_client.connect(function (err) {
 
   client.login(process.env.TOKEN);
 });
+
+module.exports = {
+  client,
+};

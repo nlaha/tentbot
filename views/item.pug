@@ -1,0 +1,64 @@
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(http-equiv="X-UA-Compatible", content="IE=edge")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        link(rel="stylesheet", href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css", integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC", crossorigin="anonymous")
+        link(rel="stylesheet", href="css/bootstrap.min.css")
+        link(rel="stylesheet", href="css/custom.css")
+        script(src="https://kit.fontawesome.com/26f2ca732d.js" crossorigin="anonymous")
+        title=`TentBot - ${item.name}`
+    body         
+        div.container.py4
+            header.pb-3.mb-4.pt-3
+                a(href="/").main-title Tent Bot
+            div.p-1.mb-5.bg-dark.rounded
+                div.card
+                    div.card-header
+                        h3.card-title.sparkle=`Lvl [${item.level}]`
+                        a.item-title(href=`${item.url}`)=`[${item.prefix}] ${item.name}`  
+                    div.row.g-0
+                        div.col.md-8
+                            div.card-body
+                                h5 Powers:
+                                each power in item.powers
+                                    div.chip.m-2
+                                        p=power
+                                h5 Stats:
+                                p.chip.m-2=`Attack ${item.attack} * ${item.level} + ${(item.enchants - item.curses) * 2}` 
+                                    b=` (${(item.attack * item.level) + (item.enchants - item.curses) * 2})`
+                                p.chip.m-2=`Defense ${item.defense} * ${item.level} + ${(item.enchants - item.curses) * 2}`
+                                    b=` (${(item.defense * item.level) + (item.enchants - item.curses) * 2})`
+                                p.chip.m-2=`Health ${item.health} * ${item.level} + ${(item.enchants - item.curses) * 2}`
+                                    b=` (${(item.health * item.level) + (item.enchants - item.curses) * 2})`
+                                h6.mt-4=item.date_discovered ? `Date Discovered: ${item.date_discovered.toDateString()}` : 'Date Discovered: Unknown'
+                                h6.mt-4=item.native_server ? `Native Server: ${item.native_server}` : 'Native Server: Unknown'
+
+                                div.btn-group.m-2
+                                    button(id="btn_enchant?" + item.id onclick=`enchant("${item.id}")`).btn.btn-primary
+                                        i.fas.fa-magic
+                                        h5=`Enchants: ${item.enchants}`
+                                    button(id="btn_curse?" + item.id onclick=`curse("${item.id}")`).btn.btn-secondary
+                                        i.fas.fa-skull
+                                        h5=`Curses: ${item.curses}`
+                                div
+                                    p(id=`status-message?${item.id}`)
+                                div.card
+
+                    div.row.g-0
+                        div.col.md-8
+                            div.card-body
+                                h5 Summary:
+                                div.m-2.mt-4
+                                    img.img-thumbnail(src=`${item.thumbnail}`)
+                                div.m-2.mt-4
+                                    p=`${summary.extract}`
+                                h5 Categories:
+                                div.m-2.mt-4
+                                    p=`${categories.map(function(x){return x.replace('Category:', '');}).join(", ")}`
+                div.m-3
+                    p.mt-3.smallprint=`ID: ${item.id}`
+                    p.smallprint=`Copywrite © ${new Date().getFullYear()} Nathan Laha`
+
+    script(src="js/client.js")

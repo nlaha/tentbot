@@ -14,12 +14,21 @@ html(lang="en")
             header.pb-3.mb-4.pt-3
                 a(href="/").main-title Tent Bot
             div.p-4.mb-5.bg-dark.rounded
-                button.btn.btn-success.btn-block
-                    a.btnlink(href="https://discord.com/api/oauth2/authorize?client_id=829067521969094667&permissions=34359798784&scope=bot") Invite Me!
+                div.row
+                    div.col-md-3.mb-2
+                        img.img-thumbnail.img-fluid(src=`${user_avatar}`)
+                    div.col-7
+                        h3=`${user.username}#${user.discriminator}`
+                        h5=`Number of Items: ${num_items}`
+                        h5=`Discord User ID: ${user.id}`
             div.p-1.mb-5.bg-dark.rounded
-                h4.m-3 Recent Discoveries
+                div.row
+                    div.col
+                        h4.m-3 Wikidex
+                    div.col
+                        h5.m-3.float-right=`Page ${page_current} of ${page_max}`
                 ul
-                each val in item_db.length ? item_db : ['No items have been discovered!']
+                each val in user_items.length ? user_items : ['No items have been discovered!']
                     li.mb-3
                         div.card
                             div.card-header
@@ -52,6 +61,17 @@ html(lang="en")
                                                             h5=`${val.curses}`
                                         div
                                             p(id=`status-message?${val.id}`)
+
+                div.btn-group.m-2.float-right.col
+                    button(onclick=`prevPage()`).btn.btn-secondary
+                        div.row.g-0
+                            div.col
+                                i.fas.fa-arrow-left
+                    button(onclick=`nextPage(${page_max})`).btn.btn-secondary
+                        div.row.g-0
+                            div.col
+                                i.fas.fa-arrow-right
+            
                 div.m-3
                     p.smallprint=`Copywrite © ${new Date().getFullYear()} Nathan Laha`
 

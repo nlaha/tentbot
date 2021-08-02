@@ -96,37 +96,50 @@ function get_item_embed(item) {
       { name: "Powers", value: item.powers.join(", ") },
       {
         name: "Attack",
-        value: `${item.attack} (${item.attack * item.level})`,
+        value: `${item.attack} (${
+          item.attack * val.level + (item.enchants - item.curses) * 2
+        })`,
         inline: true,
       },
       {
         name: "Defense",
-        value: `${item.defense} (${item.defense * item.level})`,
+        value: `${item.defense} (${
+          item.defense * val.level + (item.enchants - item.curses) * 2
+        })`,
         inline: true,
       },
       {
         name: "Health",
-        value: `${item.health} (${item.health * item.level})`,
+        value: `${item.health} (${
+          item.health * val.level + (item.enchants - item.curses) * 2
+        })`,
         inline: true,
       }
     )
     .setThumbnail(item.thumbnail)
-    .setURL(item.url)
+    .setURL(`${process.env.WEBAPP_URL}/item?id=${item.id}`)
     .setColor(stringToColour(item.prefix));
 }
 
 function get_inventory_embed(items, message, page) {
   let embed = new Discord.MessageEmbed()
     .setTitle(`${message.member.user.username}'s Inventory`)
+    .setURL(
+      `${
+        process.env.WEBAPP_URL
+      }/user?id=${message.member.user.id.toString()}&page=${page}`
+    )
     .setDescription(`Page: ${page}`);
 
   if (items !== undefined && items.length > 0) {
     items.forEach((item) => {
       embed.addFields({
         name: `[L ${item.level}] [${item.prefix}] ${item.name}`,
-        value: `A/D/H | **${item.attack * item.level}/${
-          item.defense * item.level
-        }/${item.health * item.level}** | [link](${item.url})\n\n\n`,
+        value: `A/D/H | **${
+          item.attack * item.level + (item.enchants - item.curses) * 2
+        }/${item.defense * item.level + (item.enchants - item.curses) * 2}/${
+          item.health * item.level + (item.enchants - item.curses) * 2
+        }** | [link](${process.env.WEBAPP_URL}/item?id=${item.id})\n\n\n`,
       });
     });
   } else {
