@@ -97,21 +97,21 @@ function get_item_embed(item) {
       {
         name: "Attack",
         value: `${item.attack} (${
-          item.attack * val.level + (item.enchants - item.curses) * 2
+          item.attack * item.level + (item.enchants - item.curses) * 2
         })`,
         inline: true,
       },
       {
         name: "Defense",
         value: `${item.defense} (${
-          item.defense * val.level + (item.enchants - item.curses) * 2
+          item.defense * item.level + (item.enchants - item.curses) * 2
         })`,
         inline: true,
       },
       {
         name: "Health",
         value: `${item.health} (${
-          item.health * val.level + (item.enchants - item.curses) * 2
+          item.health * item.level + (item.enchants - item.curses) * 2
         })`,
         inline: true,
       }
