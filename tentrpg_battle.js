@@ -77,7 +77,40 @@ mongo_client.connect(function (mg_error) {
           res.status(500).send("Error");
         }
 
-        res.render("index", { item_db: items });
+        // if we haven't updated the user scores in the past 1 hours, call update_user_score() for each user id
+        col_users.find({}).toArray((err, users) => {
+          if (err) {
+            console.log(err);
+            res.status(500).send("Error");
+          }
+
+          let now = new Date();
+          let last_updated = new Date(users[0].last_updated);
+          let diff = now - last_updated;
+          let diff_hours = diff / 1000 / 60 / 60;
+
+          if (last_updated == null || diff_hours > 1) {
+            users.forEach((user) => {
+              update_user_stats(user.user_id);
+            });
+            // update the last_updated field for all users
+            col_users.updateMany({}, { $set: { last_updated: now } });
+          }
+        });
+
+        // get the top 10 users sorted by user_score
+        col_users
+          .find({})
+          .limit(10)
+          .sort({ user_score: -1 })
+          .toArray((err, users) => {
+            if (err) {
+              console.log(err);
+              res.status(500).send("Error");
+            }
+
+            res.render("index", { item_db: items, user_db: users });
+          });
       });
   });
 
@@ -153,6 +186,67 @@ mongo_client.connect(function (mg_error) {
   app.get("/battle", (req, res) => {
     res.status(200).send("Battle");
   });
+
+  // updates a single user and adds a field containing the sum of all the user's item levels
+  async function update_user_stats(user_id) {
+    await col_users.findOne({ user_id: user_id }, async (err, user) => {
+      if (user) {
+        // async get all items in user inventory
+        await col_items
+          .find({
+            id: {
+              $in: user.user_inventory,
+            },
+          })
+          .toArray(async function (err, item_db) {
+            if (err) {
+              console.log(err);
+              res.status(500).send("Error");
+            }
+            // sum up item stats
+            let user_score = 0,
+              user_attack = 0,
+              user_defense = 0,
+              user_health = 0,
+              user_enchants = 0,
+              user_curses = 0;
+
+            item_db.forEach((item) => {
+              user_score += item.level;
+              user_attack += item.attack;
+              user_defense += item.defense;
+              user_health += item.health;
+              user_enchants += item.enchants;
+              user_curses += item.curses;
+            });
+
+            const discord_user = await bot.client.users
+              .fetch(user.user_id)
+              .catch(console.error);
+            const discord_avatar = await discord_user.avatarURL();
+
+            // update in database
+            col_users.updateOne(
+              { user_id: user_id },
+              {
+                $set: {
+                  user_score: user_score,
+                  user_attack: user_attack,
+                  user_defense: user_defense,
+                  user_health: user_health,
+                  user_enchants: user_enchants,
+                  user_curses: user_curses,
+                  user_avatar: discord_avatar,
+                  user_tag: discord_user.tag.split("#")[1],
+                },
+              }
+            );
+          });
+      } else {
+        console.log(`User ${user_id} is null when updating leaderboard`);
+      }
+    });
+  }
 
   // compares two dates and returns true if the first date is 24 hours older or more
   function is_24_hours_older(date1, date2) {
