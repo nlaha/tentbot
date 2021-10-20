@@ -139,6 +139,10 @@ mongo_client.connect(function (mg_error) {
   app.get("/user", async (req, res) => {
     let userid = req.query.id;
     let page = req.query.page;
+    if (page == null) {
+      // redirect
+      return res.redirect(`/user?id=${userid}&page=1`);
+    }
     await col_users.findOne({ user_id: userid }, async function (err, user) {
       if (user) {
         const discord_user = await bot.client.users
