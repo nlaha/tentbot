@@ -73,7 +73,10 @@ async function createBattle(challenged_user, message_user, db) {
 // -----------------------------------------------------------------------------
 
 const MongoClient = require("mongodb").MongoClient;
-const mongo_client = new MongoClient(process.env.MONGODB_URL);
+const mongo_client = new MongoClient(process.env.MONGODB_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 
 mongo_client.connect(function (mg_error) {
   db = mongo_client.db(process.env.MONGODB_DBNAME);

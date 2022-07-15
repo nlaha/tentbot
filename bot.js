@@ -17,11 +17,16 @@ const redis_client = redis.createClient({
 
 // MONGODB
 const MongoClient = require("mongodb").MongoClient;
-const mongo_client = new MongoClient(process.env.MONGODB_URL);
+const mongo_client = new MongoClient(process.env.MONGODB_URL, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
 
 mongo_client.connect(function (err) {
   if (!err) {
     console.log("Connected successfully to MongoDB server");
+  } else {
+    console.error("Error connecting to MongoDB server: " + err);
   }
 
   db = mongo_client.db(process.env.MONGODB_DBNAME);
