@@ -20,7 +20,9 @@ const MongoClient = require("mongodb").MongoClient;
 const mongo_client = new MongoClient(process.env.MONGODB_URL);
 
 mongo_client.connect(function (err) {
-  console.log("Connected successfully to MongoDB server");
+  if (!err) {
+    console.log("Connected successfully to MongoDB server");
+  }
 
   db = mongo_client.db(process.env.MONGODB_DBNAME);
 
@@ -142,10 +144,7 @@ mongo_client.connect(function (err) {
 
         return message.channel.send(statEmbed);
       });
-    } else if (command === "i") {
-      //tentrpg.loot(client, message, command, args, db);
-      return;
-    } else if (command === "inv") {
+    } else if (command === "inv" || command == "i") {
       const col_users = db.collection("users");
       const col_items = db.collection("items");
       if (args[0] === "clear") {
@@ -176,10 +175,40 @@ mongo_client.connect(function (err) {
         );
       }
     } else if (command === "battle") {
-      if (args[0]) {
+      if (!args[0]) {
+        return message.reply(`Please use the format ${prefix}battle @user`);
+      } else if (args[0]) {
         const challenged_user = getUserFromMention(args[0]);
         if (!challenged_user) {
           return message.reply(`Please use the format ${prefix}battle @user`);
+        }
+
+        // make sure user exists in the database, if not send an error
+        const col_users = db.collection("users");
+        const user_exists = await col_users.findOne({
+          user_id: challenged_user.id,
+        });
+        if (!user_exists) {
+          return message.reply(
+            `${challenged_user.username} does not have any items in their inventory! (they need to claim some items first)`
+          );
+        }
+
+        // make sure the message user is in the database, if not send an error
+        const user_exists_2 = await col_users.findOne({
+          user_id: message.member.user.id,
+        });
+        if (!user_exists_2) {
+          return message.reply(
+            `You do not have any items in your inventory! (you need to claim some items first)`
+          );
+        }
+
+        // make sure the user isn't challenging themselves
+        if (challenged_user.id === message.member.user.id) {
+          return message.reply(
+            `You can't challenge yourself! Please challenge someone else.`
+          );
         }
 
         tentrpg_battle.battle(

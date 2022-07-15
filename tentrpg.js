@@ -2,8 +2,6 @@ const Discord = require("discord.js");
 const disbut = require("discord-buttons");
 const { v4: uuidv4 } = require("uuid");
 var fs = require("fs");
-const deepai = require("deepai");
-deepai.setApiKey("e458fdb0-bb2e-42a3-bea3-216a0a241c40");
 const wiki = require("wikipedia");
 var axios = require("axios").default;
 
@@ -77,13 +75,6 @@ function get_powers() {
     getRandomLine("./words/powers.txt").trim(),
     getRandomLine("./words/powers.txt").trim(),
   ];
-}
-
-async function get_thumbnail(text) {
-  var resp = await deepai.callStandardApi("text2img", {
-    text: text,
-  });
-  return resp["output_url"];
 }
 
 function get_item_embed(item) {

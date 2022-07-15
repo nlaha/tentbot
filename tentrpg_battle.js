@@ -2,6 +2,7 @@ const Discord = require("discord.js");
 const disbut = require("discord-buttons");
 const path = require("path");
 const wiki = require("wikipedia");
+const { v1: uuidv1, v4: uuidv4 } = require("uuid");
 
 const express = require("express");
 var bodyParser = require("body-parser");
@@ -20,12 +21,12 @@ async function battle(client, message, command, args, db, challenged_user) {
   let previouspage = new disbut.MessageButton()
     .setStyle("red")
     .setLabel("Decline")
-    .setID(`battle_decline`);
+    .setID(`battle_decline%` + message.author.id + "%" + challenged_user.id);
 
   let nextpage = new disbut.MessageButton()
     .setStyle("green")
     .setLabel("Accept")
-    .setID(`battle_accept`);
+    .setID(`battle_accept%` + message.author.id + "%" + challenged_user.id);
 
   let row = new disbut.MessageActionRow().addComponents(previouspage, nextpage);
 
@@ -37,6 +38,34 @@ async function battle(client, message, command, args, db, challenged_user) {
     `${message.author.username} has challenged you to a battle!`,
     row
   );
+}
+
+// createBattle
+async function createBattle(challenged_user, message_user, db) {
+  // create a UUID for the battle
+  let battle_id = uuidv4();
+
+  // create a battle object
+  let battle = {
+    id: battle_id,
+    challenger: message_user,
+    challenged: challenged_user,
+    status: "pending",
+    winner: null,
+    loser: null,
+    challenger_items: await db
+      .collection("users")
+      .findOne({ user_id: message_user.id }).user_inventory,
+    challenged_items: await db
+      .collection("users")
+      .findOne({ user_id: challenged_user.id }).user_inventory,
+  };
+
+  // add the battle to the database
+  await db.collection("battles").insertOne(battle);
+
+  // return the battle id
+  return battle_id;
 }
 
 // -----------------------------------------------------------------------------
@@ -51,6 +80,7 @@ mongo_client.connect(function (mg_error) {
   const col_items = db.collection("items");
   const col_users = db.collection("users");
   const col_ips = db.collection("ips");
+  const col_battles = db.collection("battles");
 
   app.set("views", path.join(__dirname, "/views"));
   app.set("view engine", "pug");
@@ -188,7 +218,35 @@ mongo_client.connect(function (mg_error) {
   });
 
   app.get("/battle", (req, res) => {
-    res.status(200).send("Battle");
+    // get query parameters
+    let battle_id_url = req.query.id;
+
+    // url unencode the battle id
+    battle_id = decodeURIComponent(battle_id_url);
+
+    // get the battle from the database via it's id
+    col_battles.findOne({ id: battle_id }, async (err, battle) => {
+      if (err) {
+        console.log(err);
+        res.status(500).send("Error");
+      }
+
+      if (battle) {
+        // get the users from the database via their ids
+        col_users.findOne({ user_id: battle.challenger }, (err, challenger) => {
+          col_users.findOne(
+            { user_id: battle.challenged },
+            (err, challenged) => {
+              res.render("battle", {
+                battle: battle,
+                challenger: challenger,
+                challenged: challenged,
+              });
+            }
+          );
+        });
+      }
+    });
   });
 
   // updates a single user and adds a field containing the sum of all the user's item levels
@@ -356,4 +414,5 @@ mongo_client.connect(function (mg_error) {
 
 module.exports = {
   battle,
+  createBattle,
 };
