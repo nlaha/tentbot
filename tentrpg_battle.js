@@ -78,7 +78,13 @@ const mongo_client = new MongoClient(process.env.MONGODB_URL, {
   useUnifiedTopology: true,
 });
 
-mongo_client.connect(function (mg_error) {
+mongo_client.connect(function (err) {
+  if (!err) {
+    console.log("Webserver connected successfully to MongoDB server");
+  } else {
+    console.error("Error connecting webserver to MongoDB server: " + err);
+  }
+
   db = mongo_client.db(process.env.MONGODB_DBNAME);
   const col_items = db.collection("items");
   const col_users = db.collection("users");
