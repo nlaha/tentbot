@@ -186,7 +186,7 @@ async function get_inventory_page(page, interaction, userid, db, edit) {
                 components: [row],
               });
             } else {
-              await interaction.channel.send({
+              await interaction.reply({
                 embeds: [get_inventory_embed(docs, interaction, page)],
                 components: [row],
               });

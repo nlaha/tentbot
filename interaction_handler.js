@@ -138,6 +138,7 @@ function parseInteractions(client, db, redis_client, tentrpg) {
       }
 
       if (interaction.options.getSubcommand() === "show") {
+        // defer update
         await tentrpg.get_inventory_page(
           1,
           interaction,
