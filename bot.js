@@ -144,10 +144,13 @@ mongo_client.connect(function (err) {
     console.log("Successfully registered application commands.");
 
     await client.user.setPresence({
-      activity: {
-        name: `${client.guilds.cache.size} servers!`,
-        type: "WATCHING",
-      },
+      activities: [
+        {
+          name: `${client.guilds.cache.size} servers!`,
+          type: "WATCHING",
+        },
+      ],
+      status: "online",
     });
   });
 
