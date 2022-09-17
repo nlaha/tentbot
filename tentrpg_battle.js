@@ -5,6 +5,13 @@ const wiki = require("wikipedia");
 const { v1: uuidv1, v4: uuidv4 } = require("uuid");
 
 const express = require("express");
+const passport = require("passport");
+const discord_strategy = require("./discord_strategy.js");
+
+const session = require("express-session");
+var cookieParser = require("cookie-parser");
+const MongoStore = require("connect-mongo");
+
 var bodyParser = require("body-parser");
 const app = express();
 const port = process.env.WEBAPP_PORT || 8080;
@@ -53,12 +60,6 @@ async function createBattle(challenged_user, message_user, db) {
     status: "pending",
     winner: null,
     loser: null,
-    challenger_items: await db
-      .collection("users")
-      .findOne({ user_id: message_user.id }).user_inventory,
-    challenged_items: await db
-      .collection("users")
-      .findOne({ user_id: challenged_user.id }).user_inventory,
   };
 
   // add the battle to the database
@@ -90,6 +91,25 @@ mongo_client.connect(function (err) {
   const col_users = db.collection("users");
   const col_ips = db.collection("ips");
   const col_battles = db.collection("battles");
+
+  app.use(cookieParser());
+  app.use(express.urlencoded({ extended: true }));
+  app.use(
+    session({
+      secret: process.env.TOKEN,
+      store: MongoStore.create({ mongoUrl: process.env.MONGODB_URL }),
+      resave: true,
+      saveUnitialized: true,
+      rolling: true, // forces resetting of max age
+      cookie: {
+        maxAge: 360000,
+        secure: false,
+      },
+    })
+  );
+  app.use(passport.initialize());
+  app.use(passport.session());
+  passport.use("discord", discord_strategy);
 
   app.set("views", path.join(__dirname, "/views"));
   app.set("view engine", "pug");
@@ -226,7 +246,23 @@ mongo_client.connect(function (err) {
     });
   });
 
+  app.get("/auth/discord", passport.authenticate("discord"));
+  app.get(
+    "/auth/discord/callback",
+    passport.authenticate("discord", {
+      failureRedirect: "/",
+    }),
+    function (req, res) {
+      res.redirect("/"); // Successful auth
+    }
+  );
+
   app.get("/battle", (req, res) => {
+    passport.authenticate("discord", {
+      successReturnToOrRedirect: req.url,
+      failureRedirect: "/",
+    });
+
     // get query parameters
     let battle_id_url = req.query.id;
 

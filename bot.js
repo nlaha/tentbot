@@ -126,11 +126,74 @@ mongo_client.connect(function (err) {
     if (message.author.bot) return;
 
     if (message.content !== "") {
-      redis_client.lpush(message.guild.id, message.content);
+      // check if guild_config exists for this guild
+      db.collection("guild_config")
+        .find({ id: message.guild.id })
+        .toArray(function (err, result) {
+          if (err) throw err;
+
+          if (result.length == 0) {
+            // guild_config doesn't exist
+            redis_client.lpush(message.guild.id, message.content);
+          } else {
+            // get channel id from the current guild_config
+            if (result[0].channel_id == message.channel.id) {
+              redis_client.lpush(message.guild.id, message.content);
+            }
+          }
+        });
     }
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
+
+    if (command === "removechannel") {
+      if (message.member.hasPermission("ADMINISTRATOR")) {
+        db.collection("guild_config")
+          .deleteOne({ id: message.guild.id })
+          .then((result) => {
+            message.channel.send(
+              "Removed channel from the database. You can now use the bot in any channel."
+            );
+          })
+          .catch((err) => {
+            message.channel.send(
+              "There was an error removing the channel from the database."
+            );
+          });
+      } else {
+        message.channel.send("You do not have permission to use this command.");
+      }
+    }
+
+    if (command === "setchannel") {
+      if (message.member.hasPermission("ADMINISTRATOR")) {
+        console.log("Setting channel for " + message.guild.id);
+        // get first arg
+        const channel_id = args[0].replace("<#", "").replace(">", "");
+        // log
+        console.log("Channel ID: " + channel_id);
+
+        // check if channel exists
+        const channel = client.channels.cache.get(channel_id);
+        if (channel) {
+          // set channel
+          db.collection("guild_config").updateOne(
+            { id: message.guild.id },
+            { $set: { id: message.guild.id, channel_id: channel_id } },
+            { upsert: true }
+          );
+
+          message.channel.send(
+            `:white_check_mark: | Set channel to ${channel.name}`
+          );
+        } else {
+          message.channel.send(":x: | Channel not found");
+        }
+      } else {
+        message.channel.send("You do not have permission to use this command.");
+      }
+    }
 
     if (command === "stats") {
       redis_client.llen(message.guild.id, async function (err, reply) {
