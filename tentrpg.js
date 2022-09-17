@@ -181,13 +181,21 @@ async function get_inventory_page(page, interaction, userid, db, edit) {
             );
 
             if (edit == true) {
-              await interaction.editReply({
-                embeds: [get_inventory_embed(docs, interaction, page)],
-                components: [row],
-              });
+              try {
+                await interaction.editReply({
+                  embeds: [get_inventory_embed(docs, interaction, page)],
+                  components: [row],
+                });
+              } catch (err) {
+                try {
+                  await interaction.update({
+                    embeds: [get_inventory_embed(docs, interaction, page)],
+                    components: [row],
+                  });
+                } catch (err) {}
+              }
             } else {
-              // this is actually a message not an interaction
-              await interaction.channel.send({
+              await interaction.reply({
                 embeds: [get_inventory_embed(docs, interaction, page)],
                 components: [row],
               });

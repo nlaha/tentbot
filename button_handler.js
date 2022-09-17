@@ -40,7 +40,10 @@ async function bindButtonInteractions(interaction, db) {
     interaction.customId.includes("page") &&
     interaction.customId.includes("inv")
   ) {
-    await interaction.deferUpdate();
+    // check if interaction has been aknowledged
+    try {
+      await interaction.deferUpdate();
+    } catch (error) {}
 
     // handles page changing in the inventory
     // get the current page from the message description
