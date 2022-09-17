@@ -1,19 +1,31 @@
 // IMPORTS
 const Discord = require("discord.js");
-const client = new Discord.Client();
-const disbut = require("discord-buttons");
-require("discord-buttons")(client);
+const client = new Discord.Client({
+  intents: [
+    Discord.GatewayIntentBits.Guilds,
+    Discord.GatewayIntentBits.GuildMessages,
+    Discord.GatewayIntentBits.MessageContent,
+  ],
+});
+const { REST } = require("@discordjs/rest");
+
 const prefix = "!";
 
 // REDIS
 const redis = require("redis");
 const redis_client = redis.createClient({
-  host: process.env.REDIS_HOSTNAME,
-  port: process.env.REDIS_PORT,
-  user: process.env.REDIS_USER,
+  socket: {
+    host: process.env.REDIS_HOSTNAME,
+    port: process.env.REDIS_PORT,
+    username: process.env.REDIS_USER,
+  },
   password: process.env.REDIS_PASSWORD,
-  db: process.env.REDIS_DB,
+  database: process.env.REDIS_DB,
 });
+
+redis_client.connect();
+
+redis_client.on("error", (err) => console.log("Redis Client Error", err));
 
 // MONGODB
 const MongoClient = require("mongodb").MongoClient;
@@ -42,12 +54,11 @@ mongo_client.connect(function (err) {
   );
 
   const { promisify } = require("util");
-  const getAsync = promisify(redis_client.get).bind(redis_client);
 
   // modules
   const tentrpg = require("./tentrpg.js");
-  const tentrpg_battle = require("./tentrpg_battle.js");
-  const button_handler = require("./button_handler.js");
+  const interaction_handler = require("./interaction_handler.js");
+  const message_handler = require("./message_handler.js");
 
   // TENOR
   const Tenor = require("tenorjs").client({
@@ -73,25 +84,71 @@ mongo_client.connect(function (err) {
     return result.join("");
   }
 
-  client.on("ready", () => {
+  // on redis connect
+  redis_client.on("connect", async function () {
+    // flush redis db
+    redis_client.flushdb(function (err, succeeded) {
+      console.log("Redis flushed: " + succeeded);
+    });
+  });
+
+  // REST (Slash Commands)
+  const commands = [
+    new Discord.SlashCommandBuilder()
+      .setName("guildconfig")
+      .setDescription("Displays the current guild config.")
+      .setDMPermission(false),
+    new Discord.SlashCommandBuilder()
+      .setName("removechannel")
+      .setDMPermission(false)
+      .setDefaultMemberPermissions(
+        Discord.PermissionFlagsBits.KickMembers |
+          Discord.PermissionFlagsBits.BanMembers
+      )
+      .setDescription("Removes the channel restrictions for the bot"),
+    new Discord.SlashCommandBuilder()
+      .setName("setchannel")
+      .setDMPermission(false)
+      .setDefaultMemberPermissions(
+        Discord.PermissionFlagsBits.KickMembers |
+          Discord.PermissionFlagsBits.BanMembers
+      )
+      .setDescription("Sets the channel restrictions for the bot")
+      .addChannelOption((option) =>
+        option.setName("channel").setDescription("Channel").setRequired(true)
+      ),
+    new Discord.SlashCommandBuilder()
+      .setName("inventory")
+      .setDescription("Commands for the inventory")
+      .addSubcommand((subcommand) =>
+        subcommand.setName("clear").setDescription("Clears your inventory")
+      )
+      .addSubcommand((subcommand) =>
+        subcommand.setName("show").setDescription("Shows your inventory")
+      ),
+    new Discord.SlashCommandBuilder()
+      .setName("stats")
+      .setDMPermission(false)
+      .setDescription("Displays server stats (mainly for debug info)"),
+  ].map((command) => command.toJSON());
+
+  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
+  client.on("ready", async () => {
     console.log(`BOT ONLINE: Serving ${client.guilds.cache.size} server(s)`);
 
-    client.user.setPresence({
+    await rest.put(Discord.Routes.applicationCommands(process.env.DISCORD_ID), {
+      body: commands,
+    });
+
+    console.log("Successfully registered application commands.");
+
+    await client.user.setPresence({
       activity: {
         name: `${client.guilds.cache.size} servers!`,
         type: "WATCHING",
       },
     });
-
-    process.stdout.write(`Flushing Cache: `);
-    redis_client.flushdb(function (err, reply) {
-      // reply is null when the key is missing
-      process.stdout.write(reply + "\n");
-    });
-  });
-
-  client.on("clickButton", async (button) => {
-    button_handler.clickButton(button, db);
   });
 
   /**
@@ -122,238 +179,23 @@ mongo_client.connect(function (err) {
     }
   });
 
-  client.on("message", async (message) => {
-    if (message.author.bot) return;
+  // parse messages
+  message_handler.parseMessages(
+    client,
+    db,
+    redis_client,
+    tentrpg,
+    flush_cache,
+    makeid,
+    Tenor
+  );
 
-    if (message.content !== "") {
-      // check if guild_config exists for this guild
-      db.collection("guild_config")
-        .find({ id: message.guild.id })
-        .toArray(function (err, result) {
-          if (err) throw err;
-
-          if (result.length == 0) {
-            // guild_config doesn't exist
-            redis_client.lpush(message.guild.id, message.content);
-          } else {
-            // get channel id from the current guild_config
-            if (result[0].channel_id == message.channel.id) {
-              redis_client.lpush(message.guild.id, message.content);
-            }
-          }
-        });
-    }
-
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-
-    if (command === "removechannel") {
-      if (message.member.hasPermission("ADMINISTRATOR")) {
-        db.collection("guild_config")
-          .deleteOne({ id: message.guild.id })
-          .then((result) => {
-            message.channel.send(
-              "Removed channel from the database. You can now use the bot in any channel."
-            );
-          })
-          .catch((err) => {
-            message.channel.send(
-              "There was an error removing the channel from the database."
-            );
-          });
-      } else {
-        message.channel.send("You do not have permission to use this command.");
-      }
-    }
-
-    if (command === "setchannel") {
-      if (message.member.hasPermission("ADMINISTRATOR")) {
-        console.log("Setting channel for " + message.guild.id);
-        // get first arg
-        const channel_id = args[0].replace("<#", "").replace(">", "");
-        // log
-        console.log("Channel ID: " + channel_id);
-
-        // check if channel exists
-        const channel = client.channels.cache.get(channel_id);
-        if (channel) {
-          // set channel
-          db.collection("guild_config").updateOne(
-            { id: message.guild.id },
-            { $set: { id: message.guild.id, channel_id: channel_id } },
-            { upsert: true }
-          );
-
-          message.channel.send(
-            `:white_check_mark: | Set channel to ${channel.name}`
-          );
-        } else {
-          message.channel.send(":x: | Channel not found");
-        }
-      } else {
-        message.channel.send("You do not have permission to use this command.");
-      }
-    }
-
-    if (command === "stats") {
-      redis_client.llen(message.guild.id, async function (err, reply) {
-        const statEmbed = new Discord.MessageEmbed()
-          .setTitle("TentBot Stats")
-          .addFields(
-            {
-              name: "Server Count",
-              value: client.guilds.cache.size,
-              inline: true,
-            },
-            { name: "Cache Current", value: reply, inline: true },
-            { name: "Cache Max", value: process.env.CACHE_SIZE, inline: true }
-          )
-          .setColor("#42f566");
-
-        return message.channel.send(statEmbed);
-      });
-    } else if (command === "inv" || command == "i") {
-      const col_users = db.collection("users");
-      const col_items = db.collection("items");
-      if (args[0] === "clear") {
-        await col_users.updateOne(
-          {
-            user_id: message.member.user.id,
-            user_name: message.member.user.username,
-          },
-          {
-            $setOnInsert: {
-              user_id: message.member.user.id,
-              user_name: message.member.user.username,
-            },
-            $set: {
-              user_inventory: [],
-            },
-          },
-          { upsert: true }
-        );
-        message.react("✅");
-      } else {
-        await tentrpg.get_inventory_page(
-          1,
-          message,
-          message.member.user.id,
-          db,
-          false
-        );
-      }
-    } else if (command === "battle") {
-      if (!args[0]) {
-        return message.reply(`Please use the format ${prefix}battle @user`);
-      } else if (args[0]) {
-        const challenged_user = getUserFromMention(args[0]);
-        if (!challenged_user) {
-          return message.reply(`Please use the format ${prefix}battle @user`);
-        }
-
-        // make sure user exists in the database, if not send an error
-        const col_users = db.collection("users");
-        const user_exists = await col_users.findOne({
-          user_id: challenged_user.id,
-        });
-        if (!user_exists) {
-          return message.reply(
-            `${challenged_user.username} does not have any items in their inventory! (they need to claim some items first)`
-          );
-        }
-
-        // make sure the message user is in the database, if not send an error
-        const user_exists_2 = await col_users.findOne({
-          user_id: message.member.user.id,
-        });
-        if (!user_exists_2) {
-          return message.reply(
-            `You do not have any items in your inventory! (you need to claim some items first)`
-          );
-        }
-
-        // make sure the user isn't challenging themselves
-        if (challenged_user.id === message.member.user.id) {
-          return message.reply(
-            `You can't challenge yourself! Please challenge someone else.`
-          );
-        }
-
-        tentrpg_battle.battle(
-          client,
-          message,
-          command,
-          args,
-          db,
-          challenged_user
-        );
-      }
-    }
-
-    // random chance to come across an item
-    var message_chance = Math.random();
-
-    redis_client.llen(message.guild.id, function (err, reply) {
-      // check if we've reached the cache limit
-      if (reply !== undefined && err == null) {
-        if (reply >= process.env.CACHE_SIZE) {
-          if (message_chance < 0.5) {
-            // loot drop!
-            tentrpg.loot(client, message, command, args, db);
-            flush_cache(message);
-          } else {
-            redis_client.lrange(message.guild.id, 0, -1, function (err, reply) {
-              // pick a random message
-              rand_msg =
-                reply[Math.floor(Math.random() * process.env.CACHE_SIZE)];
-
-              msg_words = rand_msg.split(" ");
-              msg_word =
-                msg_words[Math.floor(Math.random() * msg_words.length)] +
-                " " +
-                makeid(6);
-              console.log(`Searching Tenor for ${msg_word}...`);
-
-              Tenor.Search.Query(msg_word, "1")
-                .then((Results) => {
-                  Results.forEach((Post) => {
-                    console.log(
-                      `Item #${Post.id} (Created: ${Post.created}) @ ${Post.url}`
-                    );
-
-                    message.channel.send(Post.url);
-                  });
-                })
-                .catch(console.error);
-
-              flush_cache(message);
-            });
-          }
-        }
-      }
-    });
-  });
+  // parse interactions
+  interaction_handler.parseInteractions(client, db, redis_client, tentrpg);
 
   function flush_cache(message) {
     process.stdout.write(`Flushing Cache: `);
-    redis_client.del(message.guild.id, function (err, reply) {
-      // flush cache
-      process.stdout.write(reply + "\n");
-    });
-  }
-
-  function getUserFromMention(mention) {
-    if (!mention) return;
-
-    if (mention.startsWith("<@") && mention.endsWith(">")) {
-      mention = mention.slice(2, -1);
-
-      if (mention.startsWith("!")) {
-        mention = mention.slice(1);
-      }
-
-      return client.users.cache.get(mention);
-    }
+    redis_client.DEL(message.guild.id);
   }
 
   client.login(process.env.TOKEN);

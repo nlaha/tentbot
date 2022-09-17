@@ -1,11 +1,10 @@
 const Discord = require("discord.js");
-const disbut = require("discord-buttons");
 const { v4: uuidv4 } = require("uuid");
 var fs = require("fs");
 const wiki = require("wikipedia");
 var axios = require("axios").default;
 
-async function loot(client, message, command, args, db) {
+async function loot(client, message, db) {
   let item = {
     id: uuidv4(),
     prefix: "",
@@ -31,14 +30,16 @@ async function loot(client, message, command, args, db) {
   var page = null;
   try {
     page = await wiki.random("summary");
-    console.log(page);
+    console.log(page.url);
 
     item.name = page.title;
   } catch (err) {
     return;
   }
 
-  item.thumbnail = page.thumbnail.source; //await get_thumbnail(`${page.extract}`);
+  if (page.thumbnail !== undefined) {
+    item.thumbnail = page.thumbnail.source; //await get_thumbnail(`${page.extract}`);
+  }
   item.attack = get_number_stat(100);
   item.defense = get_number_stat(100);
   item.health = get_number_stat(100);
@@ -49,16 +50,16 @@ async function loot(client, message, command, args, db) {
   // Insert the item into the collection
   await col_items.insertOne(item);
 
-  console.log(item);
-
   itemEmbed = get_item_embed(item);
 
-  let take = new disbut.MessageButton()
-    .setStyle("blurple")
-    .setLabel("Take")
-    .setID("take" + item.id);
+  let take = new Discord.ActionRowBuilder().addComponents(
+    new Discord.ButtonBuilder()
+      .setCustomId("take")
+      .setLabel("Take")
+      .setStyle(Discord.ButtonStyle.Primary)
+  );
 
-  await message.channel.send(itemEmbed, take);
+  await message.channel.send({ embeds: [itemEmbed], components: [take] });
 }
 
 function get_name() {
@@ -78,7 +79,7 @@ function get_powers() {
 }
 
 function get_item_embed(item) {
-  return new Discord.MessageEmbed()
+  return new Discord.EmbedBuilder()
     .setTitle(`\:interrobang: [L ${item.level}] [${item.prefix}] ${item.name}`)
     .setDescription(
       `While wandering about, you stumble upon a \`${item.name}\`, it looks very \`${item.prefix}\`.`
@@ -112,13 +113,13 @@ function get_item_embed(item) {
     .setColor(stringToColour(item.prefix));
 }
 
-function get_inventory_embed(items, message, page) {
-  let embed = new Discord.MessageEmbed()
-    .setTitle(`${message.member.user.username}'s Inventory`)
+function get_inventory_embed(items, interaction, page) {
+  let embed = new Discord.EmbedBuilder()
+    .setTitle(`${interaction.member.user.username}'s Inventory`)
     .setURL(
       `${
         process.env.WEBAPP_URL
-      }/user?id=${message.member.user.id.toString()}&page=${page}`
+      }/user?id=${interaction.member.user.id.toString()}&page=${page}`
     )
     .setDescription(`Page: ${page}`);
 
@@ -143,7 +144,7 @@ function get_inventory_embed(items, message, page) {
   return embed;
 }
 
-async function get_inventory_page(page, message, userid, db, edit) {
+async function get_inventory_page(page, interaction, userid, db, edit) {
   const col_users = db.collection("users");
   const col_items = db.collection("items");
   await col_users.findOne({ user_id: userid }, async function (err, doc) {
@@ -160,39 +161,42 @@ async function get_inventory_page(page, message, userid, db, edit) {
         .sort({ level: -1 })
         .toArray(async function (err, docs) {
           if (docs !== undefined && docs.length > 0) {
-            let previouspage = new disbut.MessageButton()
-              .setStyle("grey")
+            let previouspage = new Discord.ButtonBuilder()
+              .setCustomId(`inv_page_previous_%_${userid}`)
               .setLabel("Previous Page")
-              .setID(`inv_previous_page_%_${userid}`);
+              .setStyle(Discord.ButtonStyle.Secondary);
 
-            let nextpage = new disbut.MessageButton()
-              .setStyle("grey")
+            let nextpage = new Discord.ButtonBuilder()
+              .setCustomId(`inv_page_next_%_${userid}`)
               .setLabel("Next Page")
-              .setID(`inv_next_page_%_${userid}`);
+              .setStyle(Discord.ButtonStyle.Secondary);
 
             if (page == 1) {
               previouspage.setDisabled(true);
             }
 
-            let row = new disbut.MessageActionRow().addComponents(
+            let row = new Discord.ActionRowBuilder().addComponents(
               previouspage,
               nextpage
             );
 
             if (edit == true) {
-              await message.edit(get_inventory_embed(docs, message, page), row);
+              await interaction.editReply({
+                embeds: [get_inventory_embed(docs, interaction, page)],
+                components: [row],
+              });
             } else {
-              await message.channel.send(
-                get_inventory_embed(docs, message, page),
-                row
-              );
+              await interaction.channel.send({
+                embeds: [get_inventory_embed(docs, interaction, page)],
+                components: [row],
+              });
             }
           } else {
             return false;
           }
         });
     } else {
-      message.reply(`You have no items in your inventory!`);
+      await interaction.reply(`You have no items in your inventory!`);
     }
   });
 }
