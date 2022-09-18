@@ -30,11 +30,11 @@ mongo_client.connect(function (err) {
     console.error("Error connecting webserver to MongoDB server: " + err);
   }
 
-  db = mongo_client.db(process.env.MONGODB_DBNAME);
-  const col_items = db.collection("items");
-  const col_users = db.collection("users");
-  const col_ips = db.collection("ips");
-  const col_battles = db.collection("battles");
+  mongo = mongo_client.db(process.env.MONGODB_DBNAME);
+  const col_items = mongo.collection("items");
+  const col_users = mongo.collection("users");
+  const col_ips = mongo.collection("ips");
+  const col_battles = mongo.collection("battles");
 
   app.set("views", path.join(__dirname, "/views"));
   app.set("view engine", "pug");

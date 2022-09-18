@@ -7,202 +7,112 @@ const client = new Discord.Client({
     Discord.GatewayIntentBits.MessageContent,
   ],
 });
-const { REST } = require("@discordjs/rest");
 
-const prefix = "!";
+client.commands = new Discord.Collection();
 
-// REDIS
-const redis = require("redis");
-const redis_client = redis.createClient({
-  socket: {
-    host: process.env.REDIS_HOSTNAME,
-    port: process.env.REDIS_PORT,
-    username: process.env.REDIS_USER,
-  },
-  password: process.env.REDIS_PASSWORD,
-  database: process.env.REDIS_DB,
-});
+const fs = require("node:fs");
+const path = require("node:path");
 
-redis_client.connect();
+const commandsPath = path.join(__dirname, "commands");
+const commandFiles = fs
+  .readdirSync(commandsPath)
+  .filter((file) => file.endsWith(".js"));
 
-redis_client.on("error", (err) => console.log("Redis Client Error", err));
+for (const file of commandFiles) {
+  const filePath = path.join(commandsPath, file);
+  const command = require(filePath);
+  // Set a new item in the Collection
+  // With the key as the command name and the value as the exported module
+  client.commands.set(command.data.name, command);
+}
 
-// MONGODB
-const MongoClient = require("mongodb").MongoClient;
-const mongo_client = new MongoClient(process.env.MONGODB_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+const node_redis = require("redis");
 
-mongo_client.connect(function (err) {
-  if (!err) {
-    console.log("Connected successfully to MongoDB server");
-  } else {
-    console.error("Error connecting to MongoDB server: " + err);
-  }
-
-  db = mongo_client.db(process.env.MONGODB_DBNAME);
-
-  db.collection("items").createIndex(
-    { id: 1 },
-    { unique: true, background: true }
-  );
-
-  db.collection("users").createIndex(
-    { user_id: 1 },
-    { unique: true, background: true }
-  );
-
-  const { promisify } = require("util");
-
-  // modules
-  const tentrpg = require("./tentrpg.js");
-  const interaction_handler = require("./interaction_handler.js");
-  const message_handler = require("./message_handler.js");
-
-  // TENOR
-  const Tenor = require("tenorjs").client({
-    Key: process.env.TENOR_KEY, // https://tenor.com/developer/keyregistration
-    Filter: "off", // "off", "low", "medium", "high", not case sensitive
-    Locale: "en_US", // Your locale here, case-sensitivity depends on input
-    MediaFilter: "minimal", // either minimal or basic, not case sensitive
-    DateFormat: "D/MM/YYYY - H:mm:ss A", // Change this accordingly
+async function init_redis() {
+  // REDIS
+  const redis = node_redis.createClient({
+    socket: {
+      host: process.env.REDIS_HOSTNAME,
+      port: process.env.REDIS_PORT,
+      username: process.env.REDIS_USER,
+    },
+    password: process.env.REDIS_PASSWORD,
+    database: process.env.REDIS_DB,
   });
 
-  // BOT
-  function makeid(length) {
-    var result = [];
-    var characters =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    //"0123456789";
-    var charactersLength = characters.length;
-    for (var i = 0; i < length; i++) {
-      result.push(
-        characters.charAt(Math.floor(Math.random() * charactersLength))
-      );
+  redis.on("error", (err) => console.log("Redis Client Error", err));
+
+  await redis.connect();
+
+  console.log("Connected to Redis");
+
+  // flush redis mongo
+  await redis.FLUSHALL();
+
+  return Promise.resolve(redis);
+}
+
+async function init_mongo() {
+  // MONGODB
+  const MongoClient = require("mongodb").MongoClient;
+  const mongo_client = new MongoClient(process.env.MONGODB_URL, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+  var mongo = await mongo_client.db(process.env.MONGODB_DBNAME);
+
+  await mongo
+    .collection("items")
+    .createIndex({ id: 1 }, { unique: true, background: true });
+
+  await mongo
+    .collection("users")
+    .createIndex({ user_id: 1 }, { unique: true, background: true });
+
+  return Promise.resolve(mongo);
+}
+
+// TENOR
+const tenor = require("tenorjs").client({
+  Key: process.env.TENOR_KEY, // https://tenor.com/developer/keyregistration
+  Filter: "off", // "off", "low", "medium", "high", not case sensitive
+  Locale: "en_US", // Your locale here, case-sensitivity depends on input
+  MediaFilter: "minimal", // either minimal or basic, not case sensitive
+  DateFormat: "D/MM/YYYY - H:mm:ss A", // Change this accordingly
+});
+
+// MODULES
+const interaction_handler = require("./interaction_handler.js");
+const message_handler = require("./message_handler.js");
+
+// BOT
+client.on("warn", console.log);
+
+// Load Event files from events folder
+const eventFiles = fs.readdirSync("./events/").filter((f) => f.endsWith(".js"));
+
+init_redis().then((redis) => {
+  init_mongo().then(async (mongo) => {
+    for (const file of eventFiles) {
+      const event = require(`./events/${file}`);
+      if (event.once) {
+        client.once(event.name, (...args) =>
+          event.execute(client, mongo, redis)
+        );
+      } else {
+        client.on(event.name, (...args) => event.execute(client, mongo, redis));
+      }
     }
-    return result.join("");
-  }
 
-  // on redis connect
-  redis_client.on("connect", async function () {
-    // flush redis db
-    redis_client.flushdb(function (err, succeeded) {
-      console.log("Redis flushed: " + succeeded);
-    });
+    // parse messages
+    message_handler.parseMessages(client, mongo, redis, tenor);
+
+    // parse interactions
+    interaction_handler.parseInteractions(client, mongo, redis);
   });
-
-  // REST (Slash Commands)
-  const commands = [
-    new Discord.SlashCommandBuilder()
-      .setName("guildconfig")
-      .setDescription("Displays the current guild config.")
-      .setDMPermission(false),
-    new Discord.SlashCommandBuilder()
-      .setName("removechannel")
-      .setDMPermission(false)
-      .setDefaultMemberPermissions(
-        Discord.PermissionFlagsBits.KickMembers |
-          Discord.PermissionFlagsBits.BanMembers
-      )
-      .setDescription("Removes the channel restrictions for the bot"),
-    new Discord.SlashCommandBuilder()
-      .setName("setchannel")
-      .setDMPermission(false)
-      .setDefaultMemberPermissions(
-        Discord.PermissionFlagsBits.KickMembers |
-          Discord.PermissionFlagsBits.BanMembers
-      )
-      .setDescription("Sets the channel restrictions for the bot")
-      .addChannelOption((option) =>
-        option.setName("channel").setDescription("Channel").setRequired(true)
-      ),
-    new Discord.SlashCommandBuilder()
-      .setName("inventory")
-      .setDescription("Commands for the inventory")
-      .addSubcommand((subcommand) =>
-        subcommand.setName("clear").setDescription("Clears your inventory")
-      )
-      .addSubcommand((subcommand) =>
-        subcommand.setName("show").setDescription("Shows your inventory")
-      ),
-    new Discord.SlashCommandBuilder()
-      .setName("stats")
-      .setDMPermission(false)
-      .setDescription("Displays server stats (mainly for debug info)"),
-  ].map((command) => command.toJSON());
-
-  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-
-  client.on("ready", async () => {
-    console.log(`BOT ONLINE: Serving ${client.guilds.cache.size} server(s)`);
-
-    await rest.put(Discord.Routes.applicationCommands(process.env.DISCORD_ID), {
-      body: commands,
-    });
-
-    console.log("Successfully registered application commands.");
-
-    await client.user.setPresence({
-      activities: [
-        {
-          name: `${client.guilds.cache.size} servers!`,
-          type: "WATCHING",
-        },
-      ],
-      status: "online",
-    });
-  });
-
-  /**
-   * So basically this is here because there's
-   * this bot called twitter.com/h0nde that somehow
-   * found an exploit allowing them to create a bunch of discord
-   * accounts and create what is basically a worm
-   */
-  client.on("guildMemberAdd", (message, member) => {
-    if (member.displayName.contains("twitter.com/h0nde")) {
-      message.channel.send(
-        ":warning: | A H0NDE HAS ENTERED THE SERVER | :warning: "
-      );
-      member
-        .ban()
-        .then((member) => {
-          // Successmessage
-          message.channel.send(
-            ":warning: | THE H0NDE HAS BEEN REMOVED FROM THE SERVER | :warning:"
-          );
-        })
-        .catch(() => {
-          // Failmessage
-          message.channel.send(
-            ":exclamation: | THE H0NDE COULD NOT BE REMOVED FROM THE SERVER | :exclamation: "
-          );
-        });
-    }
-  });
-
-  // parse messages
-  message_handler.parseMessages(
-    client,
-    db,
-    redis_client,
-    tentrpg,
-    flush_cache,
-    makeid,
-    Tenor
-  );
-
-  // parse interactions
-  interaction_handler.parseInteractions(client, db, redis_client, tentrpg);
-
-  function flush_cache(message) {
-    process.stdout.write(`Flushing Cache: `);
-    redis_client.DEL(message.guild.id);
-  }
-
-  client.login(process.env.TOKEN);
 });
+
+client.login(process.env.TOKEN);
 
 module.exports = {
   client,

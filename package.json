@@ -12,6 +12,7 @@
   "dependencies": {
     "@discordjs/opus": "^0.8.0",
     "@discordjs/rest": "^1.1.0",
+    "@types/node": "^18.7.18",
     "body-parser": "^1.20.0",
     "booste": "^0.0.8",
     "connect-mongo": "^4.6.0",
@@ -23,6 +24,7 @@
     "express-session": "^1.17.3",
     "free-google-image-search": "^1.0.0",
     "mongodb": "^4.9.1",
+    "node": "^18.9.0",
     "passport": "^0.6.0",
     "passport-discord": "^0.1.4",
     "pug": "^3.0.2",

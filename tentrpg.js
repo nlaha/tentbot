@@ -4,7 +4,7 @@ var fs = require("fs");
 const wiki = require("wikipedia");
 var axios = require("axios").default;
 
-async function loot(client, message, db) {
+async function loot(client, message, mongo) {
   let item = {
     id: uuidv4(),
     prefix: "",
@@ -46,7 +46,7 @@ async function loot(client, message, db) {
   item.url = page["content_urls"]["desktop"]["page"];
 
   // Get the collation
-  const col_items = db.collection("items");
+  const col_items = mongo.collection("items");
   // Insert the item into the collection
   await col_items.insertOne(item);
 
@@ -54,7 +54,7 @@ async function loot(client, message, db) {
 
   let take = new Discord.ActionRowBuilder().addComponents(
     new Discord.ButtonBuilder()
-      .setCustomId("take")
+      .setCustomId(`take_%_${item.id}`)
       .setLabel("Take")
       .setStyle(Discord.ButtonStyle.Primary)
   );
@@ -144,9 +144,9 @@ function get_inventory_embed(items, interaction, page) {
   return embed;
 }
 
-async function get_inventory_page(page, interaction, userid, db, edit) {
-  const col_users = db.collection("users");
-  const col_items = db.collection("items");
+async function get_inventory_page(page, interaction, userid, mongo) {
+  const col_users = mongo.collection("users");
+  const col_items = mongo.collection("items");
   await col_users.findOne({ user_id: userid }, async function (err, doc) {
     if (doc) {
       const inventory = doc.user_inventory;
@@ -161,51 +161,15 @@ async function get_inventory_page(page, interaction, userid, db, edit) {
         .sort({ level: -1 })
         .toArray(async function (err, docs) {
           if (docs !== undefined && docs.length > 0) {
-            let previouspage = new Discord.ButtonBuilder()
-              .setCustomId(`inv_page_previous_%_${userid}`)
-              .setLabel("Previous Page")
-              .setStyle(Discord.ButtonStyle.Secondary);
-
-            let nextpage = new Discord.ButtonBuilder()
-              .setCustomId(`inv_page_next_%_${userid}`)
-              .setLabel("Next Page")
-              .setStyle(Discord.ButtonStyle.Secondary);
-
-            if (page == 1) {
-              previouspage.setDisabled(true);
-            }
-
-            let row = new Discord.ActionRowBuilder().addComponents(
-              previouspage,
-              nextpage
-            );
-
-            if (edit == true) {
-              try {
-                await interaction.editReply({
-                  embeds: [get_inventory_embed(docs, interaction, page)],
-                  components: [row],
-                });
-              } catch (err) {
-                try {
-                  await interaction.update({
-                    embeds: [get_inventory_embed(docs, interaction, page)],
-                    components: [row],
-                  });
-                } catch (err) {}
-              }
-            } else {
-              await interaction.reply({
-                embeds: [get_inventory_embed(docs, interaction, page)],
-                components: [row],
-              });
-            }
+            await interaction.editReply({
+              embeds: [get_inventory_embed(docs, interaction, page)],
+            });
           } else {
             return false;
           }
         });
     } else {
-      await interaction.reply(`You have no items in your inventory!`);
+      await interaction.editReply(`You have no items in your inventory!`);
     }
   });
 }

@@ -10,7 +10,7 @@ const discord_strategy = new DiscordStrategy(
     scope: scopes,
   },
   function (accessToken, refreshToken, profile, cb) {
-    const col_users = db.collection("users");
+    const col_users = mongo.collection("users");
 
     col_users.findOne({ id: profile.id }, function (err, user) {
       return cb(err, user);
