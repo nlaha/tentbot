@@ -8,4 +8,4 @@ RUN apt-get update && apt-get install -y python3 python3-pip
 
 RUN npm install --production && mv node_modules ../
 COPY . .
-CMD ["node", "main.js"]
+CMD ["node", "bot.js"]
