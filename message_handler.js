@@ -9,6 +9,21 @@ function parseMessages(client, mongo, redis, tenor) {
     if (message.author.bot) return;
 
     if (message.content !== "") {
+      // make sure message isn't a url
+      if (message.content.includes("http")) {
+        return;
+      }
+
+      // make sure message isn't a mention
+      if (message.content.includes("<@")) {
+        return;
+      }
+
+      // log
+      console.log(
+        `Message from ${message.author.username}: ${message.content}`
+      );
+
       // check if guild_config exists for this guild
       mongo
         .collection("guild_config")
@@ -32,6 +47,7 @@ function parseMessages(client, mongo, redis, tenor) {
 
       let cache_length = await redis.LLEN(message.guild.id);
       // check if we've reached the cache limit
+      console.log(`Cache Length: ${cache_length}`);
       if (cache_length !== undefined) {
         if (cache_length >= process.env.CACHE_SIZE) {
           if (message_chance < 0.5) {
@@ -51,7 +67,7 @@ function parseMessages(client, mongo, redis, tenor) {
               makeid(6);
             console.log(`Searching tenor for ${msg_word}...`);
 
-            tenor.Search.Query(msg_word, "1")
+            tenor.Search.Random(msg_word, "1")
               .then((Results) => {
                 Results.forEach((Post) => {
                   console.log(

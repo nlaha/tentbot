@@ -8,6 +8,8 @@ const client = new Discord.Client({
   ],
 });
 
+require("dotenv").config();
+
 client.commands = new Discord.Collection();
 
 const fs = require("node:fs");
